@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>PlayIMDb</title>
+
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#ffffff">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --glass-bg: rgba(255, 255, 255, 0.85);
+      --glass-border: rgba(255, 255, 255, 0.3);
+      --text-main: #000000;
+      --text-bright: #ffffff;
+      --shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+padding-top:60px;
+      overflow: hidden;
+      /* Cinematic Background with Blur */
+      background: linear-gradient(rgba(0,0,0,0.3), rgba(0,0,0,0.3)), 
+                  url('https://images.unsplash.com/photo-1572177191856-3cde618dee1f?q=80&w=1227&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D');
+      background-size: cover;
+      background-position: center;
+    }
+
+    /* Background blur layer to keep UI sharp */
+    body::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      backdrop-filter: blur(2px);
+      z-index: -1;
+    }
+
+    .container {
+      width: 90%;
+      max-width: 450px;
+      text-align: center;
+      z-index: 10;
+    }
+
+    .logo {
+      font-size: 3rem;
+      font-weight: 700;
+      margin-bottom: 5px;
+      color: var(--text-bright);
+      letter-spacing: -1.5px;
+      text-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+
+    .tagline {
+      font-size: 1rem;
+      color: var(--text-bright);
+      margin-bottom: 35px;
+      font-weight: 500;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+
+    .search-container {
+      position: relative;
+      width: 100%;
+    }
+
+    .search-box {
+      width: 100%;
+      padding: 16px 24px;
+      font-size: 17px;
+      border: 1px solid var(--glass-border);
+      border-radius: 30px;
+      outline: none;
+      background: var(--glass-bg);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow);
+      box-sizing: border-box;
+      transition: all 0.3s ease;
+    }
+
+    .search-box:focus {
+      background: #ffffff;
+      transform: translateY(-2px);
+    }
+
+    .search-btn {
+      margin-top: 25px;
+      background-color: #008000;
+      color: #ffffff;
+      border: none;
+      padding: 14px 30px;
+      border-radius: 30px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+      transition: all 0.2s;
+    }
+
+    .search-btn:active {
+      transform: scale(0.96);
+    }
+
+    .dropdown {
+      position: absolute;
+      top: 70px;
+      left: 0;
+      right: 0;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(20px);
+      border-radius: 10px;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+      max-height: 95vh;
+      overflow-y: auto;
+      z-index: 100;
+      display: none;
+      text-align: left;
+    }
+
+    .dropdown:not(:empty) { display: block; }
+
+    .item {
+      display: flex;
+      gap: 15px;
+      padding: 14px;
+      cursor: pointer;
+      align-items: center;
+      border-bottom: 1px solid rgba(0,0,0,0.05);
+    }
+
+    .item:active { background: #f0f0f0; }
+
+    img {
+      width: 50px;
+      height: 75px;
+      object-fit: cover;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+
+    .info .title {
+      font-weight: 700;
+      font-size: 15px;
+      color: #000;
+    }
+
+    .meta { display: flex; align-items: center; gap: 10px; margin-top: 5px; }
+
+    .badge {
+      font-size: 10px;
+      background: #000;
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 5px;
+      text-transform: uppercase;
+      font-weight: bold;
+    }
+
+    small { color: #666; font-size: 13px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="logo">WatchDB</div>
+  <div class="tagline">Stream Your Favorite Media in HD</div>
+  
+  <div class="search-container">
+    <input id="search" class="search-box" placeholder="Search movies, tv series..." autocomplete="off" />
+    <div id="dropdown" class="dropdown"></div>
+  </div>
+  
+  <button class="search-btn">Search ▶</button>
+</div>
+
+<script>
+const API_KEY = "bb0bd9039fd44182ecda8e901d5ef8a4";
+const input = document.getElementById("search");
+const dropdown = document.getElementById("dropdown");
+
+let timeout = null;
+let cache = {};
+
+input.addEventListener("input", () => {
+  clearTimeout(timeout);
+  const query = input.value.trim();
+  if (!query) { dropdown.innerHTML = ""; return; }
+
+  timeout = setTimeout(() => {
+    // Multi-search logic from index.html
+    fetch(`https://api.themoviedb.org/3/search/multi?api_key=${API_KEY}&query=${encodeURIComponent(query)}`)
+      .then(res => res.json())
+      .then(data => {
+        dropdown.innerHTML = "";
+        if (!data.results) return;
+
+        data.results.slice(0, 8).forEach(item => {
+          if (item.media_type === 'person') return;
+
+          const div = document.createElement("div");
+          div.className = "item";
+          
+          const title = item.title || item.name;
+          const date = item.release_date || item.first_air_date || "";
+          const year = date ? date.slice(0, 4) : "—";
+          const poster = item.poster_path 
+            ? `https://image.tmdb.org/t/p/w92${item.poster_path}` 
+            : "https://via.placeholder.com/92x138?text=No+Image";
+
+          div.innerHTML = `
+            <img src="${poster}">
+            <div class="info">
+              <div class="title">${title}</div>
+              <div class="meta">
+                <span class="badge">${item.media_type}</span>
+                <small>${year}</small>
+              </div>
+            </div>
+          `;
+
+          div.onclick = async () => {
+            let imdbID = cache[item.id];
+            if (!imdbID) {
+              const res = await fetch(`https://api.themoviedb.org/3/${item.media_type}/${item.id}?api_key=${API_KEY}&append_to_response=external_ids`);
+              const details = await res.json();
+              imdbID = details.imdb_id || (details.external_ids ? details.external_ids.imdb_id : null);
+              cache[item.id] = imdbID;
+            }
+
+            if (imdbID) {
+              // Reliability fix from index.html
+              window.open(`https://www.playimdb.com/title/${imdbID}/`, '_blank');
+            } else {
+              alert("Media not found on IMDb.");
+            }
+          };
+          dropdown.appendChild(div);
+        });
+      });
+  }, 250);
+});
+</script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("service-worker.js")
+    .then(() => console.log("Service Worker Active"));
+}
+</script>
+
+</body>
+</html>
